@@ -19,7 +19,6 @@ const ICMP_HEADER_LEN: usize = 8;
 const ICMP_PAYLOAD_LEN: usize = 32;
 
 fn create_ipv4_packet<'a>(ttl: u8, destination: Ipv4Addr, buffer: &'a mut [u8], buffer_icmp: &'a mut[u8])-> Result<pnet::packet::ipv4::MutableIpv4Packet<'a>, &'a str> {
-    //let mut packet = Box::new([0u8; 4096);
     let mut ipv4_packet = pnet::packet::ipv4::MutableIpv4Packet::new(buffer).unwrap();
     ipv4_packet.set_version(4);
     ipv4_packet.set_header_length(IPV4_HEADER_LEN as u8);
@@ -46,7 +45,7 @@ fn main() {
         }
     });
 }
-fn run_app() -> std::result::Result<(), ()> {
+fn run_app() -> std::result::Result<(), String> {
 
     let args: Vec<String> = std::env::args().collect();
     match args.len() {
@@ -54,7 +53,7 @@ fn run_app() -> std::result::Result<(), ()> {
             traceroute(&args[1]);
         }
         _ => {
-            return Err(());
+            return Err("error in matching arguments".to_string());
         }
 
     }
@@ -67,7 +66,7 @@ fn traceroute(addr: &String) -> std::result::Result<(), ()> {
         .map_err(|err| format!("Error opening the channel: {}", err)).unwrap();
     let mut rx = icmp_packet_iter(&mut rx);
         
-    let to = net::Ipv4Addr::from_str("8.8.8.8").map_err(|_| "Invalid address").unwrap();;
+    let to = net::Ipv4Addr::from_str(addr).map_err(|_| "Invalid address").unwrap();;
     let mut ttl = 1;
 
     let mut prev = to.clone();
@@ -75,14 +74,13 @@ fn traceroute(addr: &String) -> std::result::Result<(), ()> {
         let mut buffer=  [0u8; 40];
         let mut buffer_icmp =  [0u8; 40];
         let packet = create_ipv4_packet(ttl, to, &mut buffer, &mut buffer_icmp).unwrap();
-        println!("{}, {}, {}", packet.get_ttl(), packet.get_source(), packet.get_destination());
         tx.send_to(packet, IpAddr::V4(to));
         if let Ok((_, addr)) = rx.next() {
-            println!("TTL: {} - {:?}", ttl, addr.to_string());
             if addr == prev {
-                return Err(());
+                return Ok(());
             }
             else{
+                println!("TTL: {}, {}", ttl, addr);
                 prev = Ipv4Addr::from_str(&addr.to_string()).unwrap();
             }
         }       
